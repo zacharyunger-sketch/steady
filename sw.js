@@ -1,6 +1,6 @@
 // Steady service worker - cache-first so the app works fully offline.
 // Bump CACHE version whenever you change index.html to force an update.
-const CACHE = 'steady-v1';
+const CACHE = 'steady-v2';
 const ASSETS = ['./', 'index.html', 'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png'];
 
 self.addEventListener('install', e => {
