@@ -23,3 +23,6 @@ Personal recovery companion app. Single-page PWA, vanilla JS, no frameworks, no 
 - Streak = days since max(quit date, last slip); total clean = days since quit - slip count
 - All intervals (ticker, breathing, urge timer) are guarded against stacking and cleared on close
 - "Other Timeline" sim: 5% house edge, $20 bet size, weekly stdev = sqrt(bet x turnover), Box-Muller gaussian
+- Persistence: `save()` also writes a `steady_v1_bak` rolling backup; `load()` restores from it if the primary is missing/corrupt. `migrate()` additively backfills new schema fields so old saves keep working across updates.
+- On-device Coach (the "AI" layer): heuristic only, no network, no model. `riskProfile()` mines logged urges for top day/time/trigger/mood + kryptonite combo; `currentRisk()` flags high-risk windows now; `coachBriefing()` composes a tailored Home briefing; urge mode weights the user's own reasons via `buildUrgePool()`. Keep it fully offline - a cloud LLM would need opt-in and break the on-device privacy promise.
+- SW is network-first for HTML (updates land on next online launch), cache-first for assets. Bump `CACHE` on every `index.html` change.

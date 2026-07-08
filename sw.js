@@ -3,7 +3,7 @@
 // instead of being frozen behind the cache the way a pure cache-first SW is).
 // Static assets (icons, manifest): cache-first for speed and offline use.
 // Bump CACHE whenever you change index.html to force a clean re-cache.
-const CACHE = 'steady-v3';
+const CACHE = 'steady-v4';
 const ASSETS = ['./', 'index.html', 'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png'];
 
 self.addEventListener('install', e => {

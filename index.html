@@ -102,6 +102,16 @@
   .stat .k{font-size:12px;color:var(--muted);margin-top:2px}
   .help-card{background:linear-gradient(135deg,#17313c,#14232e);border:1px solid #2a4a56}
   .help-card a{color:var(--blue);text-decoration:none;font-weight:600}
+  /* coach */
+  .coach-card{background:linear-gradient(150deg,#15242e,#141b26);border:1px solid #24414f;position:relative;overflow:hidden}
+  .coach-card::before{content:"";position:absolute;top:-40px;right:-40px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,rgba(45,212,167,.16),transparent 70%);pointer-events:none}
+  .coach-badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);background:rgba(45,212,167,.12);border:1px solid rgba(45,212,167,.3);padding:3px 10px;border-radius:99px;margin-bottom:10px}
+  .coach-title{font-size:18px;font-weight:700;line-height:1.3;margin-bottom:6px;position:relative}
+  .coach-body{font-size:15px;line-height:1.6;position:relative}
+  .risk{margin-top:12px;padding:12px 14px;border-radius:12px;font-size:14px;line-height:1.55;position:relative}
+  .risk.high{background:rgba(224,106,90,.12);border:1px solid rgba(224,106,90,.35)}
+  .risk.calm{background:rgba(45,212,167,.08);border:1px solid rgba(45,212,167,.22)}
+  .combo{color:var(--red);font-weight:700}
   .milestone-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
   .milestone-row:last-child{border-bottom:none}
   .msg{
@@ -162,6 +172,13 @@
   <p class="sub" id="homeDate"></p>
 
   <button class="urge-btn" onclick="openUrge()">⚡ I'm having an urge</button>
+
+  <div class="card coach-card" id="coachCard">
+    <span class="coach-badge">✨ Coach</span>
+    <div class="coach-title" id="coachTitle"></div>
+    <div class="coach-body" id="coachBody"></div>
+    <div id="coachRisk"></div>
+  </div>
 
   <div class="row">
     <div class="card">
@@ -355,9 +372,28 @@ const ENCOURAGE=[
 ];
 
 let S=null;
-function load(){ try{ S=JSON.parse(localStorage.getItem(KEY)); }catch(e){ S=null; } }
-function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
-function defaults(){ return {quitDate:null,weeklyLoss:0,reasons:[],goal:{name:'',amount:0},urges:[],slips:[],budget:{income:0,bills:[]}}; }
+const BK=KEY+'_bak'; // rolling last-good backup so an update or bad launch can't silently wipe you
+function load(){
+  try{ S=JSON.parse(localStorage.getItem(KEY)); }catch(e){ S=null; }
+  if(!S){ // primary missing/corrupt? fall back to the last-good copy if one exists
+    try{ const b=JSON.parse(localStorage.getItem(BK)); if(b&&b.quitDate) S=b; }catch(e){}
+  }
+  migrate();
+}
+function migrate(){ // additively backfill any fields added in newer versions, so old saves keep working
+  if(!S||typeof S!=='object') return;
+  const d=defaults();
+  for(const k in d){ if(S[k]===undefined) S[k]=d[k]; }
+  if(!S.goal) S.goal={name:'',amount:0};
+  if(!S.budget) S.budget={income:0,bills:[]};
+  if(!S.usage) S.usage=d.usage;
+}
+function save(){
+  const str=JSON.stringify(S);
+  localStorage.setItem(KEY, str);
+  if(S&&S.quitDate) localStorage.setItem(BK, str); // only back up real setups, never the empty state
+}
+function defaults(){ return {quitDate:null,weeklyLoss:0,reasons:[],goal:{name:'',amount:0},urges:[],slips:[],budget:{income:0,bills:[]},usage:{opens:0,urgeOpens:0,lastOpenDate:null}}; }
 
 /* ================= HELPERS ================= */
 const $=id=>document.getElementById(id);
@@ -489,6 +525,97 @@ function finishSetup(){
   showMsg('Day one starts now. You\'ve got this. 🌱');
 }
 
+/* ================= ON-DEVICE COACH =================
+   Heuristic, private, offline. Learns only from the user's own logged data;
+   nothing is sent anywhere. This is the "AI" layer: pattern detection +
+   context-aware coaching, not a network model. */
+const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function timeBucket(h){ return h<5?'late night':h<12?'morning':h<17?'afternoon':h<22?'evening':'late night'; }
+function nowCtx(){ const d=new Date(); return {d,dow:d.getDay(),hour:d.getHours(),bucket:timeBucket(d.getHours())}; }
+
+// A specific coping move for each trigger the user might face.
+const TRIGGER_TIPS={
+  'Payday':'Move the money the second it lands - shift it to your goal before it feels spendable.',
+  'Bored':'Boredom is the setup. Have one go-to ready now: a walk, a call, a game - pick it before the urge does.',
+  'Stressed':'The bet promises relief it never delivers. Ten slow breaths or a short walk first - then reassess.',
+  'Saw an ad':'Ads are built to hook you. Mute, block, unfollow - you don\'t have to white-knuckle bait.',
+  'Alcohol':'Drinking thins the wall between urge and action. Protect the streak by protecting your sober hours.',
+  'Sports on TV':'Watching and betting got wired together. Watch with someone, or leave the phone in another room.',
+  'Argument':'Big feelings want a fast exit. This urge is the feeling talking, not you - ride it out first.',
+  'Lonely':'The urge is really asking for connection. Text one person instead - that\'s the actual fix.',
+  'Chasing losses':'Chasing is the trap that empties accounts. The loss is already gone; a bet only grows it.',
+  'Celebrating':'You don\'t owe the win a bet. Celebrate with something that\'s still good tomorrow morning.',
+  'Other':'Name what set it off in the journal - naming it takes some of its power.'
+};
+
+// Build a risk profile from logged urges, or null until there's enough signal.
+function riskProfile(){
+  if(!S.urges||S.urges.length<3) return null;
+  const top=key=>{ const c={}; S.urges.forEach(u=>{const k=key(u); if(k)c[k]=(c[k]||0)+1;}); const e=Object.entries(c).sort((a,b)=>b[1]-a[1]); return e[0]?e[0][0]:null; };
+  const combo={};
+  S.urges.forEach(u=>{ if(u.trigger&&u.mood){ const k=u.trigger+' + '+u.mood; combo[k]=combo[k]||{n:0,slip:0}; combo[k].n++; if(u.outcome==='Slipped') combo[k].slip++; } });
+  let krypt=null;
+  Object.entries(combo).forEach(([k,v])=>{ if(v.n>=2){ const r=v.slip/v.n; if(!krypt||r>krypt.rate||(r===krypt.rate&&v.n>krypt.n)) krypt={k,rate:r,n:v.n,slip:v.slip}; } });
+  const rode=S.urges.filter(u=>u.outcome==='Rode it out').length;
+  return { topTrig:top(u=>u.trigger), topMood:top(u=>u.mood),
+    topDay:top(u=>DAYS[new Date(u.ts).getDay()]), topTime:top(u=>timeBucket(new Date(u.ts).getHours())),
+    krypt, rideRate:Math.round(rode/S.urges.length*100), n:S.urges.length };
+}
+
+// Is right now one of the user's historically high-risk windows?
+function currentRisk(){
+  const p=riskProfile(); if(!p) return null;
+  const c=nowCtx(), dayHit=p.topDay===DAYS[c.dow], timeHit=p.topTime===c.bucket;
+  if(dayHit&&timeHit) return {level:'high',why:`It's ${p.topDay} ${p.topTime} - the exact window your urges have hit hardest.`};
+  if(dayHit) return {level:'high',why:`${p.topDay}s have been your toughest day so far.`};
+  if(timeHit) return {level:'high',why:`The ${p.topTime} tends to be a tricky stretch for you.`};
+  return {level:'calm',why:'This isn\'t one of your high-risk windows - a good time to build momentum.'};
+}
+
+function slippedToday(){ return S.slips&&S.slips.some(s=>s.date===todayStr()); }
+
+// A briefing tailored to streak momentum, money, milestones, time of day, and the user's own reasons.
+function coachBriefing(){
+  const st=streakDays(), c=nowCtx(), saved=moneySaved();
+  const next=MILESTONES.find(m=>m>st);
+  const focus=(S.reasons&&S.reasons.length)?S.reasons[st%S.reasons.length]:null;
+  let title, body=[];
+  if(slippedToday()){
+    title='Today is not a verdict.';
+    body.push('You logged a slip and you\'re still here - honesty like that is what actually predicts recovery.');
+    body.push(`Your ${totalCleanDays()} total clean days didn\'t vanish. Tomorrow is day one, and day ones are your specialty now.`);
+  } else if(st===0){
+    title='Day one starts now.';
+    body.push('The first stretch is the loudest. You don\'t have to want this forever - just not right now.');
+  } else if(next&&next-st<=1){
+    title=`One more day to ${next} clean.`;
+    body.push(`You\'re on the doorstep of a milestone, with ${fmt$(saved)} kept so far.`);
+  } else {
+    const greet=c.hour<12?'Morning':c.hour<17?'Afternoon':'Evening';
+    title=`${greet}. Day ${st} clean.`;
+    body.push(`That\'s ${fmt$(saved)} that stayed yours${S.goal&&S.goal.name?`, going toward ${S.goal.name}`:''}.`);
+  }
+  if(focus) body.push(`<span class="small">Why you started, in your words: <b style="color:var(--accent)">"${focus}"</b></span>`);
+  return {title, body};
+}
+
+function renderCoach(){
+  const brief=coachBriefing();
+  $('coachTitle').textContent=brief.title;
+  $('coachBody').innerHTML=brief.body.join('<br>');
+  const risk=currentRisk(), box=$('coachRisk');
+  if(!risk){ box.className=''; box.innerHTML=''; return; }
+  if(risk.level==='high'){
+    const p=riskProfile();
+    const tip=(p&&p.topTrig&&TRIGGER_TIPS[p.topTrig])||'If an urge comes, open urge mode and ride the wave - it always passes.';
+    box.className='risk high';
+    box.innerHTML=`⚠️ <b>Heads up.</b> ${risk.why}<br><span class="small" style="color:var(--text)">Your move: ${tip}</span>`;
+  } else {
+    box.className='risk calm';
+    box.innerHTML=`🟢 ${risk.why}`;
+  }
+}
+
 /* ================= HOME ================= */
 function renderHome(){
   const d=new Date();
@@ -525,6 +652,8 @@ function renderHome(){
   $('statTotal').textContent=totalCleanDays();
   $('statBest').textContent=bestStreak();
   $('statRate').textContent=(rode+slipped)>0?Math.round(rode/(rode+slipped)*100)+'%':'-';
+
+  renderCoach();
 }
 
 function logSlip(){
@@ -540,11 +669,24 @@ const BREATH=[['Breathe in…',4,true],['Hold…',4,null],['Breathe out…',4,fa
 
 function openUrge(){
   $('urgeOverlay').classList.add('open');
+  if(S.usage) S.usage.urgeOpens=(S.usage.urgeOpens||0)+1, save();
+  urgePool=buildUrgePool(); reasonIdx=0;
   urgeSecs=1200; updateTimer();
   urgeInterval=setInterval(()=>{ if(urgeSecs>0){urgeSecs--; updateTimer();} },1000);
   breathPhase=0; runBreath();
   breathInterval=setInterval(runBreath,4000);
   showReason(); reasonInterval=setInterval(showReason,9000);
+}
+// Personalize what rotates in urge mode: the user's own reasons carry the most weight,
+// then their learned pattern + win-rate, then the general encouragements.
+function buildUrgePool(){
+  const reasons=(S.reasons||[]).map(r=>'“'+r+'”');
+  const pool=[...reasons, ...reasons]; // double-weight the user's own words
+  const p=riskProfile();
+  if(p&&p.topTrig&&TRIGGER_TIPS[p.topTrig]) pool.push('Your pattern says: '+TRIGGER_TIPS[p.topTrig]);
+  if(p&&p.rideRate>=50) pool.push(`You've ridden out ${p.rideRate}% of your urges. The odds in this room are yours.`);
+  pool.push(...ENCOURAGE);
+  return pool.length?pool:ENCOURAGE.slice();
 }
 function updateTimer(){
   const m=Math.floor(urgeSecs/60),s=urgeSecs%60;
@@ -558,9 +700,9 @@ function runBreath(){
   if(grow===false) $('breathCircle').classList.remove('grow');
   breathPhase++;
 }
-let reasonIdx=0;
+let reasonIdx=0, urgePool=[];
 function showReason(){
-  const pool=[...S.reasons.map(r=>'“'+r+'”'),...ENCOURAGE];
+  const pool=urgePool.length?urgePool:[...S.reasons.map(r=>'“'+r+'”'),...ENCOURAGE];
   $('reasonBox').textContent=pool[reasonIdx%pool.length];
   reasonIdx++;
 }
@@ -628,8 +770,13 @@ function renderPatterns(){
   let html=`🎯 Most common trigger: <strong>${topTrig[0]}</strong> (${topTrig[1]}×)<br>`;
   if(topMood) html+=`🎭 Most common mood: <strong>${topMood[0]}</strong><br>`;
   html+=`📅 Riskiest day: <strong>${topDay[0]}</strong><br>⏰ Riskiest time: <strong>${topTime[0]}</strong><br>`;
-  html+=`🛡️ You've ridden out <strong>${Math.round(rode/S.urges.length*100)}%</strong> of logged urges.`;
-  html+=`<br><span class="small">Plan ahead: what will you do next ${topDay[0]} ${topTime[0]}?</span>`;
+  const prof=riskProfile();
+  if(prof&&prof.krypt&&prof.krypt.slip>0)
+    html+=`💥 Your toughest combo: <span class="combo">${prof.krypt.k}</span> - slipped ${prof.krypt.slip} of ${prof.krypt.n} times.<br>`;
+  html+=`🛡️ You've ridden out <strong>${Math.round(rode/S.urges.length*100)}%</strong> of logged urges`;
+  html+=(rode/S.urges.length>=0.6?' - you win this more than you lose it.':'.');
+  const tip=TRIGGER_TIPS[topTrig[0]];
+  html+=`<br><span class="small">Plan for next ${topDay[0]} ${topTime[0]}: ${tip||'decide now what you\'ll do instead, before the urge picks for you.'}</span>`;
   p.innerHTML=html;
 }
 
