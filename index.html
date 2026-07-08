@@ -51,6 +51,7 @@
     width:100%;padding:13px;border-radius:12px;border:1px solid var(--line);
     background:var(--card2);color:var(--text);font-size:16px;font-family:inherit;margin-bottom:10px
   }
+  input[type="date"]{text-align:right;-webkit-appearance:none;appearance:none}
   label{font-size:13px;color:var(--muted);display:block;margin-bottom:5px;margin-top:8px}
   /* nav */
   nav{
@@ -151,7 +152,10 @@
       <div class="reason-input"><input placeholder="e.g. I want my kids to trust me again"></div>
     </div>
     <button class="btn" style="margin-bottom:10px" onclick="addReasonInput()">+ Add another reason</button>
-    <button class="btn primary" onclick="setupNext(2)">Next</button>
+    <div class="row" style="gap:10px">
+      <button class="btn" style="flex:0 0 92px" onclick="setupBack(0)">← Back</button>
+      <button class="btn primary" style="flex:1" onclick="setupNext(2)">Next</button>
+    </div>
   </div>
   <div class="setup-step" data-step="2">
     <h1>Give the money a job</h1>
@@ -162,7 +166,10 @@
       <label>Goal amount ($)</label>
       <input type="number" id="su-goal-amt" placeholder="e.g. 3000" inputmode="decimal">
     </div>
-    <button class="btn primary" onclick="finishSetup()">Start my recovery</button>
+    <div class="row" style="gap:10px">
+      <button class="btn" style="flex:0 0 92px" onclick="setupBack(1)">← Back</button>
+      <button class="btn primary" style="flex:1" onclick="finishSetup()">Start my recovery</button>
+    </div>
   </div>
 </div>
 
@@ -504,6 +511,11 @@ function setupNext(step){
   }
   document.querySelectorAll('.setup-step').forEach(s=>s.classList.remove('active'));
   document.querySelector(`.setup-step[data-step="${step}"]`).classList.add('active');
+}
+function setupBack(step){ // step through onboarding backward without re-validating
+  document.querySelectorAll('.setup-step').forEach(s=>s.classList.remove('active'));
+  document.querySelector(`.setup-step[data-step="${step}"]`).classList.add('active');
+  window.scrollTo(0,0);
 }
 function addReasonInput(){
   const d=document.createElement('div'); d.className='reason-input';
