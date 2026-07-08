@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d1117">
+<title>Steady - Recovery Companion</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<style>
+  :root{
+    --bg:#0d1117; --card:#161d27; --card2:#1c2532; --line:#2a3546;
+    --text:#e8edf4; --muted:#8b98a9; --accent:#2dd4a7; --accent-dim:#1a7a61;
+    --amber:#f5b04d; --red:#e06a5a; --blue:#5aa2e0;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing:antialiased;
+  }
+  .screen{display:none;padding:20px 16px 12px;max-width:560px;margin:0 auto}
+  .screen.active{display:block}
+  h1{font-size:22px;font-weight:700;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin-bottom:10px}
+  .big{font-size:44px;font-weight:800;line-height:1.1}
+  .unit{font-size:15px;color:var(--muted);font-weight:500}
+  .row{display:flex;gap:12px}
+  .row .card{flex:1}
+  .bar{height:8px;background:var(--card2);border-radius:99px;overflow:hidden;margin:10px 0 6px}
+  .bar>div{height:100%;background:var(--accent);border-radius:99px;transition:width .4s}
+  .bar.gold>div{background:var(--amber)}
+  .small{font-size:13px;color:var(--muted)}
+  .green{color:var(--accent)} .amber{color:var(--amber)} .red{color:var(--red)}
+  button{font-family:inherit;border:none;border-radius:14px;cursor:pointer;font-weight:600}
+  .btn{width:100%;padding:16px;font-size:16px;background:var(--card2);color:var(--text);border:1px solid var(--line)}
+  .btn.primary{background:var(--accent);color:#08251c;border:none}
+  .btn.danger-soft{background:transparent;color:var(--muted);border:1px dashed var(--line);font-weight:500;font-size:14px;padding:12px}
+  .urge-btn{
+    width:100%;padding:22px;font-size:19px;font-weight:800;border-radius:18px;
+    background:linear-gradient(135deg,#e06a5a,#c94f56);color:#fff;
+    box-shadow:0 6px 24px rgba(224,106,90,.35);margin-bottom:14px;
+  }
+  input,select,textarea{
+    width:100%;padding:13px;border-radius:12px;border:1px solid var(--line);
+    background:var(--card2);color:var(--text);font-size:16px;font-family:inherit;margin-bottom:10px
+  }
+  label{font-size:13px;color:var(--muted);display:block;margin-bottom:5px;margin-top:8px}
+  /* nav */
+  nav{
+    position:fixed;bottom:0;left:0;right:0;display:flex;
+    background:rgba(13,17,23,.96);backdrop-filter:blur(12px);
+    border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:50
+  }
+  nav button{flex:1;background:none;color:var(--muted);padding:12px 0 10px;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:0}
+  nav button.on{color:var(--accent)}
+  nav .ico{font-size:20px;line-height:1}
+  /* chips */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .chip{padding:9px 14px;border-radius:99px;background:var(--card2);border:1px solid var(--line);color:var(--text);font-size:14px;font-weight:500}
+  .chip.sel{background:var(--accent);color:#08251c;border-color:var(--accent)}
+  /* urge overlay */
+  #urgeOverlay{
+    display:none;position:fixed;inset:0;z-index:100;background:#0a0f14;
+    padding:24px 20px calc(24px + env(safe-area-inset-bottom));
+    flex-direction:column;align-items:center;text-align:center;overflow-y:auto
+  }
+  #urgeOverlay.open{display:flex}
+  .breath-wrap{margin:22px 0 8px;display:flex;align-items:center;justify-content:center;height:190px}
+  .breath{
+    width:110px;height:110px;border-radius:50%;
+    background:radial-gradient(circle,rgba(45,212,167,.55),rgba(45,212,167,.12));
+    border:2px solid var(--accent);transition:transform 4s ease-in-out;
+  }
+  .breath.grow{transform:scale(1.55)}
+  #breathText{font-size:17px;color:var(--accent);font-weight:600;min-height:24px;margin-bottom:6px}
+  #urgeTimer{font-size:40px;font-weight:800;font-variant-numeric:tabular-nums;margin:6px 0 2px}
+  #reasonBox{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:16px;margin:16px 0;font-size:16px;line-height:1.5;max-width:420px;width:100%
+  }
+  .urge-actions{width:100%;max-width:420px;display:flex;flex-direction:column;gap:10px;margin-top:auto;padding-top:16px}
+  /* journal */
+  .entry{border-bottom:1px solid var(--line);padding:12px 0}
+  .entry:last-child{border-bottom:none}
+  .entry .top{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:3px}
+  .tag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:99px;font-weight:600}
+  .tag.win{background:rgba(45,212,167,.15);color:var(--accent)}
+  .tag.slip{background:rgba(224,106,90,.15);color:var(--red)}
+  .bill{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:15px}
+  .bill:last-child{border-bottom:none}
+  .bill .x{color:var(--red);background:none;font-size:18px;padding:0 6px}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .stat{background:var(--card2);border-radius:12px;padding:12px}
+  .stat .v{font-size:20px;font-weight:700}
+  .stat .k{font-size:12px;color:var(--muted);margin-top:2px}
+  .help-card{background:linear-gradient(135deg,#17313c,#14232e);border:1px solid #2a4a56}
+  .help-card a{color:var(--blue);text-decoration:none;font-weight:600}
+  .milestone-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
+  .milestone-row:last-child{border-bottom:none}
+  .msg{
+    position:fixed;top:16px;left:16px;right:16px;z-index:200;background:var(--card);
+    border:1px solid var(--accent);border-radius:14px;padding:14px 16px;font-size:15px;
+    box-shadow:0 8px 30px rgba(0,0,0,.5);display:none;max-width:520px;margin:0 auto
+  }
+  .setup-step{display:none} .setup-step.active{display:block}
+  .reason-input{display:flex;gap:8px;margin-bottom:8px}
+  .reason-input input{margin-bottom:0}
+  .reason-input button{padding:0 16px;background:var(--card2);color:var(--red);border:1px solid var(--line);border-radius:12px}
+  textarea{resize:none;height:70px}
+</style>
+</head>
+<body>
+
+<div class="msg" id="msg"></div>
+
+<!-- ============ SETUP ============ -->
+<div class="screen" id="scr-setup">
+  <div class="setup-step active" data-step="0">
+    <h1>Welcome to Steady 🌱</h1>
+    <p class="sub">Your private recovery companion. Everything stays on this device - nothing is sent anywhere.</p>
+    <div class="card">
+      <label>When did you stop gambling? (or when do you start?)</label>
+      <input type="date" id="su-quit">
+      <label>On average, how much were you losing per week? ($)</label>
+      <input type="number" id="su-loss" placeholder="e.g. 200" inputmode="decimal">
+      <p class="small">This is used to show you the money you're keeping. Be honest - it's just for you.</p>
+    </div>
+    <button class="btn primary" onclick="setupNext(1)">Next</button>
+  </div>
+  <div class="setup-step" data-step="1">
+    <h1>Why are you quitting?</h1>
+    <p class="sub">When an urge hits, the app will show you these - in your own words. Add at least one.</p>
+    <div class="card" id="su-reasons">
+      <div class="reason-input"><input placeholder="e.g. I want my kids to trust me again"></div>
+    </div>
+    <button class="btn" style="margin-bottom:10px" onclick="addReasonInput()">+ Add another reason</button>
+    <button class="btn primary" onclick="setupNext(2)">Next</button>
+  </div>
+  <div class="setup-step" data-step="2">
+    <h1>Give the money a job</h1>
+    <p class="sub">Money you don't gamble needs somewhere better to go. Pick a goal that matters to you.</p>
+    <div class="card">
+      <label>What are you saving toward?</label>
+      <input id="su-goal" placeholder="e.g. Pay off credit card, Trip to Japan">
+      <label>Goal amount ($)</label>
+      <input type="number" id="su-goal-amt" placeholder="e.g. 3000" inputmode="decimal">
+    </div>
+    <button class="btn primary" onclick="finishSetup()">Start my recovery</button>
+  </div>
+</div>
+
+<!-- ============ HOME ============ -->
+<div class="screen" id="scr-home">
+  <h1 id="greeting">Steady</h1>
+  <p class="sub" id="homeDate"></p>
+
+  <button class="urge-btn" onclick="openUrge()">⚡ I'm having an urge</button>
+
+  <div class="row">
+    <div class="card">
+      <h2>Clean streak</h2>
+      <div class="big green" id="streakDays">0</div>
+      <div class="unit">days</div>
+    </div>
+    <div class="card">
+      <h2>Money kept</h2>
+      <div class="big amber" id="moneySaved">$0</div>
+      <div class="unit">since you quit</div>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:#5a3540">
+    <h2>The other timeline 💰</h2>
+    <div class="small">If you'd kept going, statistically the house would have taken:</div>
+    <div class="big red" style="font-size:34px" id="counterLoss">$0.00</div>
+    <div class="unit">and counting - <span id="tickRate"></span>, even while you sleep</div>
+    <div class="small" style="margin-top:10px;line-height:1.6" id="wagerFact"></div>
+    <button class="btn" style="margin-top:12px" onclick="runSim()">Simulate 1,000 parallel yous ⸻</button>
+    <canvas id="simCanvas" width="520" height="230" style="width:100%;display:none;margin-top:12px;border-radius:12px;background:var(--card2)"></canvas>
+    <div class="small" id="simResult" style="margin-top:8px;line-height:1.6"></div>
+  </div>
+
+  <div class="card">
+    <h2>Next milestone</h2>
+    <div id="milestoneText" style="font-size:16px;font-weight:600"></div>
+    <div class="bar"><div id="milestoneBar" style="width:0%"></div></div>
+    <div class="small" id="milestoneSub"></div>
+  </div>
+
+  <div class="card">
+    <h2 id="goalTitle">Savings goal</h2>
+    <div id="goalText" style="font-size:16px;font-weight:600"></div>
+    <div class="bar gold"><div id="goalBar" style="width:0%"></div></div>
+    <div class="small" id="goalSub"></div>
+  </div>
+
+  <div class="card">
+    <h2>Your record</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="v green" id="statRode">0</div><div class="k">urges ridden out</div></div>
+      <div class="stat"><div class="v" id="statTotal">0</div><div class="k">total clean days</div></div>
+      <div class="stat"><div class="v" id="statBest">0</div><div class="k">best streak (days)</div></div>
+      <div class="stat"><div class="v" id="statRate">-</div><div class="k">urge win rate</div></div>
+    </div>
+  </div>
+
+  <button class="btn danger-soft" onclick="logSlip()">Being honest: I gambled - log a slip</button>
+</div>
+
+<!-- ============ JOURNAL ============ -->
+<div class="screen" id="scr-journal">
+  <h1>Trigger Journal</h1>
+  <p class="sub">Every urge you log teaches you something about your patterns.</p>
+
+  <div class="card" id="patternsCard">
+    <h2>Your patterns</h2>
+    <div id="patterns" style="font-size:15px;line-height:1.7"></div>
+  </div>
+
+  <div class="card">
+    <h2>Log an urge</h2>
+    <label>What triggered it?</label>
+    <div class="chips" id="trigChips"></div>
+    <label>How were you feeling?</label>
+    <div class="chips" id="moodChips"></div>
+    <label>Outcome</label>
+    <div class="chips" id="outChips"></div>
+    <label>Notes (optional)</label>
+    <textarea id="urgeNote" placeholder="What was going on?"></textarea>
+    <button class="btn primary" onclick="saveUrgeEntry()">Save entry</button>
+  </div>
+
+  <div class="card">
+    <h2>History</h2>
+    <div id="entryList"><p class="small">No entries yet.</p></div>
+  </div>
+</div>
+
+<!-- ============ BUDGET ============ -->
+<div class="screen" id="scr-budget">
+  <h1>Budget</h1>
+  <p class="sub">Simple on purpose. Know what comes in, what must go out, and where the gambling money goes now.</p>
+
+  <div class="card">
+    <h2>Monthly income</h2>
+    <input type="number" id="bIncome" placeholder="Take-home pay ($)" inputmode="decimal" onchange="saveBudget()">
+  </div>
+
+  <div class="card">
+    <h2>Bills & essentials</h2>
+    <div id="billList"></div>
+    <div class="reason-input" style="margin-top:10px">
+      <input id="billName" placeholder="Bill name">
+      <input id="billAmt" type="number" placeholder="$" inputmode="decimal" style="max-width:90px">
+      <button onclick="addBill()" style="color:var(--accent)">＋</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>The redirect</h2>
+    <div id="redirectText" style="font-size:15px;line-height:1.7"></div>
+  </div>
+
+  <div class="card">
+    <h2>Monthly picture</h2>
+    <div id="budgetSummary" style="font-size:15px;line-height:1.9"></div>
+  </div>
+</div>
+
+<!-- ============ SETTINGS ============ -->
+<div class="screen" id="scr-settings">
+  <h1>Settings</h1>
+  <p class="sub">All data lives only on this device.</p>
+
+  <div class="card help-card">
+    <h2>If you need a human</h2>
+    <div style="font-size:15px;line-height:1.8">
+      <strong>National Problem Gambling Helpline</strong><br>
+      Call or text <a href="tel:18004262537">1-800-GAMBLER</a> - free, confidential, 24/7<br>
+      <a href="https://www.gamblersanonymous.org" target="_blank">Gamblers Anonymous meetings</a><br>
+      <a href="https://www.gamtalk.org" target="_blank">GamTalk - peer support chat</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Your numbers</h2>
+    <label>Quit date</label>
+    <input type="date" id="setQuit" onchange="saveSettings()">
+    <label>Average weekly loss ($)</label>
+    <input type="number" id="setLoss" inputmode="decimal" onchange="saveSettings()">
+    <label>Goal name</label>
+    <input id="setGoal" onchange="saveSettings()">
+    <label>Goal amount ($)</label>
+    <input type="number" id="setGoalAmt" inputmode="decimal" onchange="saveSettings()">
+  </div>
+
+  <div class="card">
+    <h2>Your reasons</h2>
+    <div id="setReasons"></div>
+    <button class="btn" onclick="addSettingsReason()">+ Add reason</button>
+  </div>
+
+  <div class="card">
+    <h2>Tip</h2>
+    <p class="small" style="line-height:1.6">Add this app to your home screen: open in Safari/Chrome - Share - <strong>Add to Home Screen</strong>. Then it's one tap away when you need it.</p>
+  </div>
+
+  <button class="btn" style="margin-bottom:10px" onclick="exportData()">Export my data (JSON)</button>
+  <button class="btn danger-soft" onclick="resetAll()">Erase everything and start over</button>
+</div>
+
+<!-- ============ URGE OVERLAY ============ -->
+<div id="urgeOverlay">
+  <h1 style="margin-top:8px">This feeling will pass.</h1>
+  <p class="sub" style="margin-bottom:0">Urges peak and fade like a wave - usually within 20 minutes. Your only job right now is to wait it out. Breathe with the circle.</p>
+  <div class="breath-wrap"><div class="breath" id="breathCircle"></div></div>
+  <div id="breathText">Breathe in…</div>
+  <div id="urgeTimer">20:00</div>
+  <div class="small">riding the wave</div>
+  <div id="reasonBox"></div>
+  <div class="small" style="margin-bottom:4px">Need a voice? Call or text <a href="tel:18004262537" style="color:var(--blue);font-weight:600">1-800-GAMBLER</a></div>
+  <div class="urge-actions">
+    <button class="btn primary" onclick="urgePassed()">💪 It passed - log the win</button>
+    <button class="btn" onclick="closeUrge(false)">Close</button>
+  </div>
+</div>
+
+<nav id="nav">
+  <button data-scr="home" class="on"><span class="ico">🏠</span>Home</button>
+  <button data-scr="journal"><span class="ico">📓</span>Journal</button>
+  <button data-scr="budget"><span class="ico">💰</span>Budget</button>
+  <button data-scr="settings"><span class="ico">⚙️</span>Settings</button>
+</nav>
+
+<script>
+/* ================= STATE ================= */
+const KEY='steady_v1';
+const MILESTONES=[1,3,7,14,30,60,90,180,365,730];
+const TRIGGERS=['Payday','Bored','Stressed','Saw an ad','Alcohol','Sports on TV','Argument','Lonely','Chasing losses','Celebrating','Other'];
+const MOODS=['Anxious','Bored','Angry','Sad','Excited','Numb','Hopeful','Tired'];
+const OUTCOMES=['Rode it out','Slipped'];
+const ENCOURAGE=[
+  'Every urge you outlast makes the next one weaker.',
+  'You are literally rewiring your brain right now.',
+  'The bet always looks best in the 5 minutes before you place it.',
+  'Future you is watching this moment. Make them proud.',
+  'You have survived 100% of your worst days so far.'
+];
+
+let S=null;
+function load(){ try{ S=JSON.parse(localStorage.getItem(KEY)); }catch(e){ S=null; } }
+function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+function defaults(){ return {quitDate:null,weeklyLoss:0,reasons:[],goal:{name:'',amount:0},urges:[],slips:[],budget:{income:0,bills:[]}}; }
+
+/* ================= HELPERS ================= */
+const $=id=>document.getElementById(id);
+const fmt$=n=>'$'+Math.round(n).toLocaleString();
+function daysBetween(a,b){ return Math.max(0,Math.floor((b-a)/86400000)); }
+function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function parseDate(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function showMsg(t,ms=4000){ const m=$('msg'); m.textContent=t; m.style.display='block'; clearTimeout(m._t); m._t=setTimeout(()=>m.style.display='none',ms); }
+
+function streakDays(){
+  if(!S.quitDate) return 0;
+  let start=parseDate(S.quitDate);
+  if(S.slips.length){ const last=parseDate(S.slips[S.slips.length-1].date); if(last>start) start=last; }
+  return daysBetween(start,new Date());
+}
+function totalCleanDays(){
+  if(!S.quitDate) return 0;
+  return Math.max(0, daysBetween(parseDate(S.quitDate),new Date()) - S.slips.length);
+}
+function bestStreak(){
+  if(!S.quitDate) return 0;
+  const points=[parseDate(S.quitDate), ...S.slips.map(s=>parseDate(s.date)), new Date()];
+  let best=0;
+  for(let i=1;i<points.length;i++) best=Math.max(best,daysBetween(points[i-1],points[i]));
+  return best;
+}
+function moneySaved(){
+  if(!S.quitDate) return 0;
+  const weeks=daysBetween(parseDate(S.quitDate),new Date())/7;
+  return weeks*S.weeklyLoss;
+}
+
+/* ============ HOUSE ALWAYS WINS ENGINE ============ */
+const EDGE=0.05, BET=20; // typical house edge & bet size for the simulation
+let tickerInt=null;
+function startTicker(){
+  clearInterval(tickerInt);
+  tickerInt=setInterval(()=>{
+    const el=$('counterLoss');
+    if(!el||!S||!S.quitDate||!$('scr-home').classList.contains('active')) return;
+    const loss=Math.max(0,(Date.now()-parseDate(S.quitDate).getTime())/604800000*S.weeklyLoss);
+    el.textContent='$'+loss.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  },100);
+}
+function gauss(){
+  let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+function runSim(){
+  const W=S.weeklyLoss||100, weeks=52, N=1000;
+  const turnover=W/EDGE, sd=Math.sqrt(BET*turnover);
+  const finals=[], paths=[];
+  for(let i=0;i<N;i++){
+    let b=0; const p=[0];
+    for(let w=0;w<weeks;w++){ b+=-W+gauss()*sd; p.push(b); }
+    finals.push(b); if(i<60) paths.push(p);
+  }
+  drawSim(paths,weeks,W);
+  finals.sort((a,b)=>a-b);
+  const ahead=finals.filter(f=>f>0).length, median=finals[N>>1];
+  $('simResult').innerHTML=
+    `12 months from now, out of 1,000 yous who kept betting: <strong class="red">${N-ahead} lose money</strong>. `+
+    `Median outcome: <strong class="red">${fmt$(median)}</strong>. `+
+    (ahead===0?'Not a single one comes out ahead.':`${ahead} get lucky - and they're one hot streak from giving it back.`)+
+    `<br>Meanwhile the you reading this keeps <strong class="green">+${fmt$(W*52)}</strong>. That green line is you.`;
+}
+function drawSim(paths,weeks,W){
+  const cv=$('simCanvas'); cv.style.display='block';
+  const ctx=cv.getContext('2d'), w=cv.width, h=cv.height;
+  ctx.clearRect(0,0,w,h);
+  let min=0,max=W*weeks;
+  paths.forEach(p=>p.forEach(v=>{ if(v<min)min=v; if(v>max)max=v; }));
+  const X=i=>i/weeks*(w-10)+5, Y=v=>(max-v)/(max-min)*(h-30)+15;
+  // zero line
+  ctx.strokeStyle='#3a4658'; ctx.setLineDash([4,4]); ctx.beginPath();
+  ctx.moveTo(0,Y(0)); ctx.lineTo(w,Y(0)); ctx.stroke(); ctx.setLineDash([]);
+  // red counterfactual paths
+  ctx.strokeStyle='rgba(224,106,90,.22)'; ctx.lineWidth=1;
+  paths.forEach(p=>{ ctx.beginPath(); p.forEach((v,i)=>i?ctx.lineTo(X(i),Y(v)):ctx.moveTo(X(0),Y(v))); ctx.stroke(); });
+  // green "you" line: money kept
+  ctx.strokeStyle='#2dd4a7'; ctx.lineWidth=2.5; ctx.beginPath();
+  ctx.moveTo(X(0),Y(0)); ctx.lineTo(X(weeks),Y(W*weeks)); ctx.stroke();
+  ctx.font='600 12px -apple-system,sans-serif';
+  ctx.fillStyle='#2dd4a7'; ctx.fillText('you, if you keep quitting',w-160,Y(W*weeks)+14);
+  ctx.fillStyle='#e06a5a'; ctx.fillText('1,000 parallel yous who didn\'t',8,h-8);
+}
+
+/* ================= NAV ================= */
+function show(scr){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $('scr-'+scr).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.scr===scr));
+  if(scr==='home') renderHome();
+  if(scr==='journal') renderJournal();
+  if(scr==='budget') renderBudget();
+  if(scr==='settings') renderSettings();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.scr));
+
+/* ================= SETUP ================= */
+function setupNext(step){
+  if(step===1){
+    if(!$('su-quit').value||!(parseFloat($('su-loss').value)>=0)){ showMsg('Please fill in both fields.'); return; }
+  }
+  if(step===2){
+    if(!collectSetupReasons().length){ showMsg('Add at least one reason - it matters later.'); return; }
+  }
+  document.querySelectorAll('.setup-step').forEach(s=>s.classList.remove('active'));
+  document.querySelector(`.setup-step[data-step="${step}"]`).classList.add('active');
+}
+function addReasonInput(){
+  const d=document.createElement('div'); d.className='reason-input';
+  d.innerHTML='<input placeholder="Another reason…"><button onclick="this.parentNode.remove()">×</button>';
+  $('su-reasons').appendChild(d);
+}
+function collectSetupReasons(){
+  return [...$('su-reasons').querySelectorAll('input')].map(i=>i.value.trim()).filter(Boolean);
+}
+function finishSetup(){
+  S=defaults();
+  S.quitDate=$('su-quit').value;
+  S.weeklyLoss=parseFloat($('su-loss').value)||0;
+  S.reasons=collectSetupReasons();
+  S.goal={name:$('su-goal').value.trim()||'My savings goal', amount:parseFloat($('su-goal-amt').value)||0};
+  save();
+  $('nav').style.display='flex';
+  show('home');
+  showMsg('Day one starts now. You\'ve got this. 🌱');
+}
+
+/* ================= HOME ================= */
+function renderHome(){
+  const d=new Date();
+  $('homeDate').textContent=d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+  const st=streakDays();
+  $('streakDays').textContent=st;
+  $('moneySaved').textContent=fmt$(moneySaved());
+
+  $('tickRate').textContent='$'+(S.weeklyLoss/168).toFixed(2)+'/hour';
+  $('wagerFact').innerHTML=`To lose ${fmt$(S.weeklyLoss)}/week at a typical 5% house edge, you'd be feeding <strong>${fmt$(S.weeklyLoss/EDGE)}/week</strong> through the machine. The house's cut never sleeps - but neither does your savings now.`;
+  startTicker();
+
+  const next=MILESTONES.find(m=>m>st)||MILESTONES[MILESTONES.length-1];
+  const prev=[...MILESTONES].reverse().find(m=>m<=st)||0;
+  const pct=next>prev?Math.min(100,((st-prev)/(next-prev))*100):100;
+  $('milestoneText').textContent = st>=next? `🎉 ${st} days - beyond every milestone!` : `${next} days clean`;
+  $('milestoneBar').style.width=pct+'%';
+  $('milestoneSub').textContent = st>=next? 'You\'re in rare territory.' : `${next-st} day${next-st===1?'':'s'} to go - you're ${Math.round(pct)}% there`;
+
+  $('goalTitle').textContent='Goal: '+(S.goal.name||'Savings');
+  const saved=moneySaved(), amt=S.goal.amount||0;
+  const gpct=amt>0?Math.min(100,(saved/amt)*100):0;
+  $('goalText').textContent = amt>0? `${fmt$(Math.min(saved,amt))} of ${fmt$(amt)}` : 'Set a goal amount in Settings';
+  $('goalBar').style.width=gpct+'%';
+  if(amt>0&&saved>=amt) $('goalSub').textContent='🎉 Fully funded by money you didn\'t gamble!';
+  else if(amt>0&&S.weeklyLoss>0){
+    const weeksLeft=Math.ceil((amt-saved)/S.weeklyLoss);
+    $('goalSub').textContent=`At ${fmt$(S.weeklyLoss)}/week kept, you'll hit this in ~${weeksLeft} week${weeksLeft===1?'':'s'}.`;
+  } else $('goalSub').textContent='';
+
+  const rode=S.urges.filter(u=>u.outcome==='Rode it out').length;
+  const slipped=S.urges.filter(u=>u.outcome==='Slipped').length;
+  $('statRode').textContent=rode;
+  $('statTotal').textContent=totalCleanDays();
+  $('statBest').textContent=bestStreak();
+  $('statRate').textContent=(rode+slipped)>0?Math.round(rode/(rode+slipped)*100)+'%':'-';
+}
+
+function logSlip(){
+  if(!confirm('Log a slip for today?\n\nA slip is a data point, not a verdict. Logging it honestly is itself an act of recovery.')) return;
+  S.slips.push({date:todayStr()});
+  save(); renderHome();
+  showMsg(`Logged. Your ${totalCleanDays()} total clean days still count - the streak restarts, your progress doesn't. Consider adding a journal entry about what triggered it.`,8000);
+}
+
+/* ================= URGE MODE ================= */
+let urgeInterval=null, breathInterval=null, reasonInterval=null, urgeSecs=1200, breathPhase=0;
+const BREATH=[['Breathe in…',4,true],['Hold…',4,null],['Breathe out…',4,false],['Hold…',4,null]];
+
+function openUrge(){
+  $('urgeOverlay').classList.add('open');
+  urgeSecs=1200; updateTimer();
+  urgeInterval=setInterval(()=>{ if(urgeSecs>0){urgeSecs--; updateTimer();} },1000);
+  breathPhase=0; runBreath();
+  breathInterval=setInterval(runBreath,4000);
+  showReason(); reasonInterval=setInterval(showReason,9000);
+}
+function updateTimer(){
+  const m=Math.floor(urgeSecs/60),s=urgeSecs%60;
+  $('urgeTimer').textContent=`${m}:${String(s).padStart(2,'0')}`;
+  if(urgeSecs===0) $('urgeTimer').textContent='You did it. 🌊';
+}
+function runBreath(){
+  const [txt,secs,grow]=BREATH[breathPhase%4];
+  $('breathText').textContent=txt;
+  if(grow===true) $('breathCircle').classList.add('grow');
+  if(grow===false) $('breathCircle').classList.remove('grow');
+  breathPhase++;
+}
+let reasonIdx=0;
+function showReason(){
+  const pool=[...S.reasons.map(r=>'“'+r+'”'),...ENCOURAGE];
+  $('reasonBox').textContent=pool[reasonIdx%pool.length];
+  reasonIdx++;
+}
+function closeUrge(passed){
+  $('urgeOverlay').classList.remove('open');
+  clearInterval(urgeInterval); clearInterval(breathInterval); clearInterval(reasonInterval);
+  $('breathCircle').classList.remove('grow');
+}
+function urgePassed(){
+  closeUrge(true);
+  show('journal');
+  selChip('outChips','Rode it out');
+  showMsg('That\'s a win. Log what triggered it while it\'s fresh - 30 seconds now saves you next time.',7000);
+}
+
+/* ================= JOURNAL ================= */
+function buildChips(id,items){
+  $(id).innerHTML=items.map(t=>`<button class="chip" onclick="selChip('${id}','${t.replace(/'/g,"\\'")}')">${t}</button>`).join('');
+}
+function selChip(id,val){
+  [...$(id).children].forEach(c=>c.classList.toggle('sel',c.textContent===val));
+}
+function getChip(id){ const s=$(id).querySelector('.sel'); return s?s.textContent:null; }
+
+function saveUrgeEntry(){
+  const trigger=getChip('trigChips'), mood=getChip('moodChips'), outcome=getChip('outChips');
+  if(!trigger||!outcome){ showMsg('Pick at least a trigger and an outcome.'); return; }
+  S.urges.push({ts:new Date().toISOString(),trigger,mood,outcome,note:$('urgeNote').value.trim()});
+  if(outcome==='Slipped' && !S.slips.some(s=>s.date===todayStr())) S.slips.push({date:todayStr()});
+  save();
+  $('urgeNote').value=''; ['trigChips','moodChips','outChips'].forEach(id=>selChip(id,'__none__'));
+  renderJournal();
+  showMsg(outcome==='Rode it out'?'Win logged. 💪':'Logged honestly - that takes guts. Tomorrow is day one again, and your history still counts.');
+}
+
+function renderJournal(){
+  buildChips('trigChips',TRIGGERS); buildChips('moodChips',MOODS); buildChips('outChips',OUTCOMES);
+  const list=$('entryList');
+  if(!S.urges.length){ list.innerHTML='<p class="small">No entries yet. Logging urges - even ones you beat - is how patterns emerge.</p>'; }
+  else{
+    list.innerHTML=[...S.urges].reverse().map(u=>{
+      const d=new Date(u.ts);
+      const when=d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+      return `<div class="entry">
+        <div class="top"><span>${when}</span><span class="tag ${u.outcome==='Rode it out'?'win':'slip'}">${u.outcome}</span></div>
+        <div style="font-size:15px"><strong>${u.trigger}</strong>${u.mood?' · feeling '+u.mood.toLowerCase():''}</div>
+        ${u.note?`<div class="small" style="margin-top:3px">${u.note}</div>`:''}
+      </div>`;
+    }).join('');
+  }
+  renderPatterns();
+}
+
+function renderPatterns(){
+  const p=$('patterns');
+  if(S.urges.length<3){ p.innerHTML=`<span class="small">Log ${3-S.urges.length} more urge${3-S.urges.length===1?'':'s'} and I'll start showing you your patterns - when, why, and where your urges hit hardest.</span>`; return; }
+  const count=(arr,key)=>{ const c={}; arr.forEach(u=>{const k=key(u); if(k)c[k]=(c[k]||0)+1;}); return Object.entries(c).sort((a,b)=>b[1]-a[1]); };
+  const topTrig=count(S.urges,u=>u.trigger)[0];
+  const topMood=count(S.urges,u=>u.mood)[0];
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const topDay=count(S.urges,u=>days[new Date(u.ts).getDay()])[0];
+  const bucket=h=>h<5?'late night':h<12?'morning':h<17?'afternoon':h<22?'evening':'late night';
+  const topTime=count(S.urges,u=>bucket(new Date(u.ts).getHours()))[0];
+  const rode=S.urges.filter(u=>u.outcome==='Rode it out').length;
+  let html=`🎯 Most common trigger: <strong>${topTrig[0]}</strong> (${topTrig[1]}×)<br>`;
+  if(topMood) html+=`🎭 Most common mood: <strong>${topMood[0]}</strong><br>`;
+  html+=`📅 Riskiest day: <strong>${topDay[0]}</strong><br>⏰ Riskiest time: <strong>${topTime[0]}</strong><br>`;
+  html+=`🛡️ You've ridden out <strong>${Math.round(rode/S.urges.length*100)}%</strong> of logged urges.`;
+  html+=`<br><span class="small">Plan ahead: what will you do next ${topDay[0]} ${topTime[0]}?</span>`;
+  p.innerHTML=html;
+}
+
+/* ================= BUDGET ================= */
+function renderBudget(){
+  $('bIncome').value=S.budget.income||'';
+  const bl=$('billList');
+  bl.innerHTML=S.budget.bills.length?S.budget.bills.map((b,i)=>
+    `<div class="bill"><span>${b.name}</span><span>${fmt$(b.amount)} <button class="x" onclick="delBill(${i})">×</button></span></div>`
+  ).join(''):'<p class="small">Add your rent, utilities, groceries, debt payments…</p>';
+
+  const monthly=S.weeklyLoss*52/12;
+  $('redirectText').innerHTML=
+    `You used to send <strong class="red">${fmt$(monthly)}/month</strong> to gambling.<br>`+
+    `Now it goes to <strong class="amber">${S.goal.name||'your goal'}</strong>.<br>`+
+    `<span class="small">Tip: set up an automatic transfer of ${fmt$(monthly)} on payday so the money moves before you can.</span>`;
+
+  const bills=S.budget.bills.reduce((a,b)=>a+b.amount,0);
+  const income=S.budget.income||0;
+  const left=income-bills-monthly;
+  $('budgetSummary').innerHTML=
+    `Income: <strong>${fmt$(income)}</strong><br>`+
+    `Bills & essentials: <strong>-${fmt$(bills)}</strong><br>`+
+    `Redirected to goal: <strong class="amber">-${fmt$(monthly)}</strong><br>`+
+    `<span style="border-top:1px solid var(--line);display:inline-block;padding-top:6px;margin-top:4px">Left to live on: <strong class="${left>=0?'green':'red'}">${fmt$(left)}</strong></span>`+
+    (left<0?'<br><span class="small red">This is negative - worth revisiting the numbers or the goal pace.</span>':'');
+}
+function saveBudget(){ S.budget.income=parseFloat($('bIncome').value)||0; save(); renderBudget(); }
+function addBill(){
+  const n=$('billName').value.trim(), a=parseFloat($('billAmt').value);
+  if(!n||!(a>0)){ showMsg('Enter a bill name and amount.'); return; }
+  S.budget.bills.push({name:n,amount:a}); save();
+  $('billName').value=''; $('billAmt').value='';
+  renderBudget();
+}
+function delBill(i){ S.budget.bills.splice(i,1); save(); renderBudget(); }
+
+/* ================= SETTINGS ================= */
+function renderSettings(){
+  $('setQuit').value=S.quitDate||'';
+  $('setLoss').value=S.weeklyLoss||'';
+  $('setGoal').value=S.goal.name||'';
+  $('setGoalAmt').value=S.goal.amount||'';
+  const box=$('setReasons');
+  box.innerHTML=S.reasons.map((r,i)=>
+    `<div class="reason-input"><input value="${r.replace(/"/g,'&quot;')}" onchange="S.reasons[${i}]=this.value;save()"><button onclick="S.reasons.splice(${i},1);save();renderSettings()">×</button></div>`
+  ).join('');
+}
+function addSettingsReason(){
+  const r=prompt('New reason for quitting:');
+  if(r&&r.trim()){ S.reasons.push(r.trim()); save(); renderSettings(); }
+}
+function saveSettings(){
+  S.quitDate=$('setQuit').value||S.quitDate;
+  S.weeklyLoss=parseFloat($('setLoss').value)||0;
+  S.goal.name=$('setGoal').value.trim();
+  S.goal.amount=parseFloat($('setGoalAmt').value)||0;
+  save(); showMsg('Saved.');
+}
+function exportData(){
+  const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='steady-backup-'+todayStr()+'.json'; a.click();
+}
+function resetAll(){
+  if(confirm('Erase ALL data? This cannot be undone.')&&confirm('Really sure? Your journal and history will be gone.')){
+    localStorage.removeItem(KEY); location.reload();
+  }
+}
+
+/* ============ SERVICE WORKER ============ */
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+
+/* ================= INIT ================= */
+load();
+if(S&&S.quitDate){
+  $('nav').style.display='flex';
+  show('home');
+}else{
+  $('nav').style.display='none';
+  $('scr-setup').classList.add('active');
+  $('su-quit').value=todayStr();
+}
+</script>
+</body>
+</html>
